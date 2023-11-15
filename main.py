@@ -1,6 +1,8 @@
+import random
 import pygame
 import numpy as np
-import math
+import psutil
+
 
 # Define constants
 WIDTH, HEIGHT = 400, 400
@@ -9,7 +11,7 @@ FPS = 30
 # Additional constants
 BABY_GROWTH_TIME = 60  # Frames for a baby to grow into an adult
 BABY_RADIUS = 30  # Radius within which a baby can be eaten
-MAX_CREATURES = 50
+MAX_CREATURES = psutil.cpu_count(logical=False) * 25
 
 # Define colors
 WHITE = (255, 255, 255)
@@ -31,7 +33,7 @@ pygame.init()
 
 # Set up the screen
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Q-learning with Pygame")
+pygame.display.set_caption("life sim")
 
 # Clock to control the frame rate
 clock = pygame.time.Clock()
@@ -61,16 +63,26 @@ class QLearningAgent:
     def take_action(self, action):
         x, y = self.state
 
+        if self.enemy:
+            self.speed = 4
+
+        if self.food <= -100:
+            self.die()
+
         if action == 0:  # Up
             y = max(0, y - self.speed)
+            self.food - 0.001
         elif action == 1:  # Down
             y = min(HEIGHT - 20, y + self.speed)
+            self.food - 0.001
         elif action == 2:  # Left
             x = max(0, x - self.speed)
+            self.food - 0.001
         elif action == 3:  # Right
             x = min(WIDTH - 20, x + self.speed)
+            self.food - 0.001
         elif action == 4:
-            self.food -= 6
+            self.food -= random.randint(3, 6)
             self.create_baby()
 
         return x, y
@@ -112,6 +124,7 @@ class QLearningAgent:
         global baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares, MAX_CREATURES
         baby = QLearningAgent(self.q_table)
         baby.enemy = self.enemy
+        baby.state = self.state
         if (
             len(
                 baby_black_squares
@@ -125,6 +138,26 @@ class QLearningAgent:
                 baby_red_squares.append(baby)
             else:
                 baby_black_squares.append(baby)
+
+    def die(self):
+        global blue_squares, baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares
+        blue_squares.append(pygame.Rect(self.state[0], self.state[1], 20, 20))
+        try:
+            baby_black_squares.remove(self)
+        except:
+            None
+        try:
+            baby_red_squares.remove(self)
+        except:
+            None
+        try:
+            adult_black_squares.remove(self)
+        except:
+            None
+        try:
+            adult_red_squares.remove(self)
+        except:
+            None
 
 
 # Lists for cubes
@@ -141,6 +174,7 @@ red_reward = 0
 
 # Variables for green squares
 green_squares = []
+blue_squares = []
 
 # Main game loop
 running = True
@@ -188,11 +222,21 @@ while running:
                 pygame.Rect(red_square.state[0], red_square.state[1], 20, 20)
             ):
                 black_square.reward -= 1
+                black_square.food -= 0.1
                 red_square.reward += 1
                 red_square.food += 1
 
         # Check if black square collides with red square
         for red_square in baby_red_squares:
+            for green_square in green_squares:
+                if green_square.collidepoint(
+                    (red_square.state[0], red_square.state[1])
+                ):
+                    try:
+                        baby_red_squares.remove(red_square)
+                    except:
+                        None
+
             if pygame.Rect(
                 black_next_state[0], black_next_state[1], 20, 20
             ).colliderect(
@@ -204,7 +248,7 @@ while running:
                 except:
                     None
                 red_square.reward += 1
-                red_square.food += 1
+                red_square.food += 2
 
         # Calculate rewards based on proximity to green and bad squares
         black_square.reward += black_square.calculate_reward(
@@ -217,7 +261,8 @@ while running:
             if pygame.Rect(
                 black_next_state[0], black_next_state[1], 20, 20
             ).colliderect(green_square):
-                black_square.reward -= 1
+                black_square.reward += 1
+                black_square.food += 1
 
         # Update the Q-table for the black square
         black_square.update_q_table(black_action, black_next_state, black_square.reward)
@@ -235,6 +280,13 @@ while running:
             ):
                 red_square.reward -= 1
                 black_square.reward += 1
+
+        for green_square in green_squares:
+            if green_square.collidepoint((red_square.state[0], red_square.state[1])):
+                try:
+                    adult_red_squares.remove(red_square)
+                except:
+                    None
 
         # Calculate rewards based on proximity to green and bad squares
         red_square.reward += red_square.calculate_reward(
@@ -255,6 +307,20 @@ while running:
         # Update the Q-table for the red square
         red_square.update_q_table(red_action, red_next_state, red_square.reward)
 
+    for creature in (
+        adult_black_squares + adult_red_squares + baby_black_squares + baby_red_squares
+    ):
+        for blue in blue_squares:
+            if blue.collidepoint((creature.state[0], creature.state[1])):
+                if creature.enemy:
+                    creature.food += 0.3
+                else:
+                    creature.food += 9
+                try:
+                    blue_squares.remove(blue)
+                except:
+                    None
+
     screen.fill(WHITE)
     # Update and draw adult black squares
     for black_square in adult_black_squares:
@@ -267,6 +333,10 @@ while running:
         pygame.draw.rect(
             screen, RED, (red_square.state[0], red_square.state[1], 20, 20)
         )
+
+    # Update and draw adult red squares
+    for blue_square in blue_squares:
+        pygame.draw.rect(screen, (0, 0, 255), blue_square)
 
     # Update and draw baby black squares
     for baby_black in baby_black_squares:
@@ -283,7 +353,7 @@ while running:
             pygame.draw.rect(
                 screen,
                 BLACK,
-                (baby_black_next_state[0], baby_black_next_state[1], 10, 10),
+                (baby_black_next_state[0], baby_black_next_state[1], 5, 5),
             )
 
     # Update and draw baby red squares
@@ -297,7 +367,7 @@ while running:
             baby_red_next_state = baby_red.take_action(baby_red.choose_action())
             baby_red.update_q_table(0, baby_red_next_state, 0)  # No reward for babies
             pygame.draw.rect(
-                screen, RED, (baby_red_next_state[0], baby_red_next_state[1], 10, 10)
+                screen, RED, (baby_red_next_state[0], baby_red_next_state[1], 5, 5)
             )
 
     # Draw and update green squares
