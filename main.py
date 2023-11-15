@@ -375,14 +375,18 @@ while running:
         pygame.draw.rect(screen, GREEN, green_square)
 
     # Spawn a green square randomly
-    if np.random.uniform(0, 1) < 0.01:
-        new_square = pygame.Rect(
-            np.random.randint(0, WIDTH - 20),
-            np.random.randint(0, HEIGHT - 20),
-            20,
-            20,
-        )
-        green_squares.append(new_square)
+    if green_squares <= MAX_CREATURES:
+        if np.random.uniform(0, 1) < 0.01:
+            new_square = pygame.Rect(
+                np.random.randint(0, WIDTH - 20),
+                np.random.randint(0, HEIGHT - 20),
+                20,
+                20,
+            )
+            green_squares.append(new_square)
+    else:
+        index = random.randint(0, len(green_squares))
+        green_squares.pop(index)
 
     # Update the display
     pygame.display.flip()
