@@ -9,7 +9,7 @@ WIDTH, HEIGHT = 400, 400
 FPS = 30
 
 # Additional constants
-BABY_GROWTH_TIME = 60  # Frames for a baby to grow into an adult
+BABY_GROWTH_TIME = 120  # Frames for a baby to grow into an adult
 BABY_RADIUS = 30  # Radius within which a baby can be eaten
 MAX_CREATURES = psutil.cpu_count(logical=False) * 25
 
@@ -163,7 +163,7 @@ class QLearningAgent:
 # Lists for cubes
 e = QLearningAgent(q_table_red)
 e.enemy = True
-adult_black_squares = [QLearningAgent(q_table_black)]
+adult_black_squares = [QLearningAgent(q_table_black), QLearningAgent(q_table_black)]
 baby_black_squares = [e]
 adult_red_squares = []
 baby_red_squares = []
