@@ -375,7 +375,7 @@ while running:
         pygame.draw.rect(screen, GREEN, green_square)
 
     # Spawn a green square randomly
-    if green_squares <= MAX_CREATURES:
+    if len(green_squares) <= MAX_CREATURES:
         if np.random.uniform(0, 1) < 0.01:
             new_square = pygame.Rect(
                 np.random.randint(0, WIDTH - 20),
