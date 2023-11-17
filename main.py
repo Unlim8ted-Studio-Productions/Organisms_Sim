@@ -3,33 +3,42 @@ import pygame
 import numpy as np
 import psutil
 
+# Initialize Pygame
+pygame.init()
+
+infoObject: object = pygame.display.Info()
 
 # Define constants
-WIDTH, HEIGHT = 400, 400
+WIDTH, HEIGHT = infoObject.current_w, infoObject.current_h
 FPS = 30
 
 # Additional constants
 BABY_GROWTH_TIME = 120  # Frames for a baby to grow into an adult
 BABY_RADIUS = 30  # Radius within which a baby can be eaten
 MAX_CREATURES = psutil.cpu_count(logical=False) * 25
+WALL_COST = 10  # Food cost to create a wall
+WALL_HEALTH = 3  # Initial health of the wall
 
 # Define colors
 WHITE = (255, 255, 255)
 BLACK = (25, 45, 25)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
+PURPLE = (128, 0, 128)  # Color for walls
 
 # Define the Q-learning parameters
-learning_rate = 0.8
-discount_factor = 0.95
-epsilon = 0.1
+learning_rate = 0.5
+discount_factor = 0.8
+epsilon = 0.2
 
 # Define the Q-tables for black and red squares
-q_table_black = np.zeros((WIDTH, HEIGHT, 5))  # 5 actions (up, down, left, right, baby)
-q_table_red = np.zeros((WIDTH, HEIGHT, 5))  # 5 actions (up, down, left, right, baby)
+q_table_black = np.zeros(
+    (WIDTH, HEIGHT, 7)
+)  # 6 actions (up, down, left, right, nothing, baby, create wall)
+q_table_red = np.zeros(
+    (WIDTH, HEIGHT, 7)
+)  # 6 actions (up, down, left, right, nothing, baby, create wall)
 
-# Initialize Pygame
-pygame.init()
 
 # Set up the screen
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -39,24 +48,60 @@ pygame.display.set_caption("life sim")
 clock = pygame.time.Clock()
 
 
+class Wall:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.health = WALL_HEALTH
+
+
 # Define the agent
 class QLearningAgent:
-    def __init__(self, q_table):
+    def __init__(self, q_table, custom_rewards=None):
         self.state = (0, 0)
         self.speed = 5  # Initial speed of the agent
         self.q_table = q_table
         self.reward = 0
         self.prev_distance = None  # Store the previous distance
         self.food = 0
-        self.reward = 0
         self.enemy = False
+        self.custom_rewards = custom_rewards or {
+            "getting_closer": 0.05,
+            "getting_further": -0.05,
+            "near_bad_positions": -0.3,
+            "eating_green": 1,
+            "additional_reward": 0.1,  # New reward for exploration
+        }
+        self.wall_health = 0
+        self.wall_cooldown = 0
+
+    def create_wall(self):
+        global walls
+        if self.food >= WALL_COST and self.wall_cooldown == 0:
+            self.food -= WALL_COST
+            walls.append(Wall(self.state[0], self.state[1]))  # Create a Wall object
+            self.wall_cooldown = 60  # Cooldown in frames
+
+    def attack_wall(self):
+        if self.wall_health > 0:
+            self.wall_health -= 1
+            return True
+        else:
+            return False
+
+    def update_wall(self):
+        if self.wall_cooldown > 0:
+            self.wall_cooldown -= 1
 
     def choose_action(self):
         if np.random.uniform(0, 1) < epsilon:
             if self.food >= 3:
-                return np.random.choice(5)  # Exploration
+                if self.food >= WALL_COST and not self.enemy:
+                    return np.random.choice(7)  # Exploration
+                else:
+                    return np.random.choice(6)  # Exploration
             else:
-                return np.random.choice(4)  # Exploration
+                return np.random.choice(5)  # Exploration
         else:
             return np.argmax(self.q_table[self.state[0], self.state[1]])
 
@@ -65,6 +110,14 @@ class QLearningAgent:
 
         if self.enemy:
             self.speed = 4
+        # else:
+        #    self.speed = 5
+        #
+        # size = self.food // 2 + 20
+        #
+        # if size > 50:
+        #    size = 150        #
+        # self.speed -= size / 100
 
         if self.food <= -100:
             self.die()
@@ -81,9 +134,11 @@ class QLearningAgent:
         elif action == 3:  # Right
             x = min(WIDTH - 20, x + self.speed)
             self.food - 0.001
-        elif action == 4:
+        elif action == 5:
             self.food -= random.randint(3, 6)
             self.create_baby()
+        elif action == 6:
+            self.create_wall()
 
         return x, y
 
@@ -93,22 +148,23 @@ class QLearningAgent:
             distance = np.linalg.norm(np.array(self.state) - np.array(good_pos))
             if self.prev_distance is not None:
                 if distance < self.prev_distance:
-                    self.reward += 0.1  # A small positive reward for getting closer
+                    self.reward += self.custom_rewards["getting_closer"]
                 elif distance > self.prev_distance:
-                    self.reward -= 0.1  # A small negative reward for getting further
+                    self.reward += self.custom_rewards["getting_further"]
 
         # Penalize for being close to bad positions
         for bad_pos in bad_positions:
             distance_to_bad = np.linalg.norm(np.array(self.state) - np.array(bad_pos))
             if distance_to_bad < radius:
-                self.reward -= (
-                    0.5  # A larger negative reward for being close to bad positions
-                )
+                self.reward += self.custom_rewards["near_bad_positions"]
 
         self.prev_distance = np.linalg.norm(
             np.array(self.state) - np.array(self.take_action(self.choose_action()))
         )  # Update previous distance
-        return self.reward
+
+        return self.reward + self.custom_rewards.get(
+            "additional_reward", 0
+        ) * np.random.uniform(-0.1, 0.1)
 
     def update_q_table(self, action, next_state, reward):
         old_value = self.q_table[self.state[0], self.state[1], action]
@@ -122,9 +178,11 @@ class QLearningAgent:
 
     def create_baby(self):
         global baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares, MAX_CREATURES
-        baby = QLearningAgent(self.q_table)
+        baby = QLearningAgent(self.q_table, custom_rewards=self.custom_rewards)
         baby.enemy = self.enemy
+        self.reward += 1.5
         baby.state = self.state
+
         if (
             len(
                 baby_black_squares
@@ -168,6 +226,9 @@ baby_black_squares = [e]
 adult_red_squares = []
 baby_red_squares = []
 
+# Walls list to store created walls
+walls = []
+
 # Score variables
 black_reward = 0
 red_reward = 0
@@ -186,6 +247,16 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_r:
+                # Reset simulation when 'r' is pressed
+                adult_black_squares = [QLearningAgent(q_table_black) for _ in range(2)]
+                baby_black_squares = []
+                adult_red_squares = [e]
+                baby_red_squares = []
+                green_squares = []
+                blue_squares = []
+                walls = []
+                baby_frame_counter = 0
             # Add these print statements for debugging
             for index, agent_black in enumerate(adult_black_squares):
                 print(
@@ -322,16 +393,65 @@ while running:
                     None
 
     screen.fill(WHITE)
+    # Check if black square collides with a wall
+    for black_square in adult_black_squares + baby_black_squares:
+        for red_square in adult_red_squares + baby_red_squares:
+            for wall in walls:
+                if pygame.Rect(
+                    red_square.state[0], red_square.state[1], 20, 20
+                ).colliderect(pygame.Rect(wall.x, wall.y, 20, 20)):
+                    if wall.health > 0:
+                        wall.health -= 1
+                        red_square.reward += 0.5  # Reward for breaking a wall
+                        red_square.food += 0.5
+
+    # Update and draw walls
+    for wall in walls:
+        if wall.health > 0:
+            pygame.draw.rect(
+                screen,
+                PURPLE,  # Use the PURPLE color for the wall
+                (
+                    wall.x,
+                    wall.y,
+                    20,
+                    20,
+                ),
+            )
+
     # Update and draw adult black squares
     for black_square in adult_black_squares:
+        size = black_square.food // 2 + 20
+
+        if size > 50:
+            size = 50
         pygame.draw.rect(
-            screen, BLACK, (black_square.state[0], black_square.state[1], 20, 20)
+            screen,
+            BLACK,
+            (
+                black_square.state[0],
+                black_square.state[1],
+                size,
+                size,
+            ),
         )
 
     # Update and draw adult red squares
     for red_square in adult_red_squares:
+        size = red_square.food // 2 + 20
+
+        if size > 50:
+            size = 50
+
         pygame.draw.rect(
-            screen, RED, (red_square.state[0], red_square.state[1], 20, 20)
+            screen,
+            RED,
+            (
+                red_square.state[0],
+                red_square.state[1],
+                size,
+                size,
+            ),
         )
 
     # Update and draw adult red squares
