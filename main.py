@@ -3,15 +3,20 @@ import pygame
 import numpy as np
 import psutil
 
+# Initialize Pygame
+pygame.init()
 
 # Define constants
-WIDTH, HEIGHT = 400, 400
+infoObject: object = pygame.display.Info()
+WIDTH, HEIGHT = infoObject.current_w, infoObject.current_h
 FPS = 30
 
 # Additional constants
 BABY_GROWTH_TIME = 120  # Frames for a baby to grow into an adult
 BABY_RADIUS = 30  # Radius within which a baby can be eaten
-MAX_CREATURES = psutil.cpu_count(logical=False) * 25
+MAX_CREATURES = 50
+MUTATION_RATE = 0.1
+BREEDING_RATE = 0.2
 
 # Define colors
 WHITE = (255, 255, 255)
@@ -28,8 +33,6 @@ epsilon = 0.1
 q_table_black = np.zeros((WIDTH, HEIGHT, 5))  # 5 actions (up, down, left, right, baby)
 q_table_red = np.zeros((WIDTH, HEIGHT, 5))  # 5 actions (up, down, left, right, baby)
 
-# Initialize Pygame
-pygame.init()
 
 # Set up the screen
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -41,7 +44,12 @@ clock = pygame.time.Clock()
 
 # Define the agent
 class QLearningAgent:
-    def __init__(self, q_table):
+    def __init__(
+        self,
+        q_table,
+        attractiveness=np.random.uniform(0, 1),
+        reproductive_urge=np.random.uniform(0, 1),
+    ):
         self.state = (0, 0)
         self.speed = 5  # Initial speed of the agent
         self.q_table = q_table
@@ -50,6 +58,13 @@ class QLearningAgent:
         self.food = 0
         self.reward = 0
         self.enemy = False
+        self.attractiveness = attractiveness
+        self.reproductive_urge = reproductive_urge
+        self.custom_rewards = {
+            "closer_to_good": 0.1 + random.uniform(0, 0.5),
+            "further_from_good": -0.1 + random.uniform(0, 0.5),
+            "closer_to_bad": -0.5 + random.uniform(0, 0.5),
+        }
 
     def choose_action(self):
         if np.random.uniform(0, 1) < epsilon:
@@ -93,17 +108,21 @@ class QLearningAgent:
             distance = np.linalg.norm(np.array(self.state) - np.array(good_pos))
             if self.prev_distance is not None:
                 if distance < self.prev_distance:
-                    self.reward += 0.1  # A small positive reward for getting closer
+                    self.reward += self.custom_rewards[
+                        "closer_to_good"
+                    ]  # A small positive reward for getting closer
                 elif distance > self.prev_distance:
-                    self.reward -= 0.1  # A small negative reward for getting further
+                    self.reward -= self.custom_rewards[
+                        "further_from_good"
+                    ]  # A small negative reward for getting further
 
         # Penalize for being close to bad positions
         for bad_pos in bad_positions:
             distance_to_bad = np.linalg.norm(np.array(self.state) - np.array(bad_pos))
             if distance_to_bad < radius:
-                self.reward -= (
-                    0.5  # A larger negative reward for being close to bad positions
-                )
+                self.reward -= self.custom_rewards[
+                    "closer_to_bad"
+                ]  # A larger negative reward for being close to bad positions
 
         self.prev_distance = np.linalg.norm(
             np.array(self.state) - np.array(self.take_action(self.choose_action()))
@@ -120,11 +139,15 @@ class QLearningAgent:
 
         self.state = next_state
 
+        # Introduce mutation to the Q-table
+        if np.random.uniform(0, 1) < MUTATION_RATE:
+            self.q_table += np.random.normal(0, 0.1, self.q_table.shape)
+
     def create_baby(self):
         global baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares, MAX_CREATURES
-        baby = QLearningAgent(self.q_table)
-        baby.enemy = self.enemy
-        baby.state = self.state
+        # Introduce breeding with genetic crossover
+        # Introduce breeding with attractiveness and reproductive urge
+        # Introduce breeding with the top five closest partners and high attractiveness
         if (
             len(
                 baby_black_squares
@@ -134,10 +157,70 @@ class QLearningAgent:
             )
             <= MAX_CREATURES
         ):
-            if baby.enemy:
-                baby_red_squares.append(baby)
-            else:
-                baby_black_squares.append(baby)
+            if np.random.uniform(0, 1) < BREEDING_RATE:
+                # Find the top five closest partners
+                partners = (
+                    adult_black_squares
+                    + adult_red_squares
+                    + baby_black_squares
+                    + baby_red_squares
+                )
+                partners = sorted(
+                    partners,
+                    key=lambda x: np.linalg.norm(
+                        np.array(self.state) - np.array(x.state)
+                    ),
+                )[:5]
+
+                # Select one with high attractiveness
+                partner = max(partners, key=lambda x: x.attractiveness)
+
+                # Calculate average attractiveness and reproductive urge with a random variation
+                avg_attractiveness = (self.attractiveness + partner.attractiveness) / 2
+                avg_speed = (self.speed + partner.speed) / 2
+                avg_reproductive_urge = (
+                    self.reproductive_urge + partner.reproductive_urge
+                ) / 2
+                avg_attractiveness += np.random.uniform(-0.1, 0.1)
+                avg_reproductive_urge += np.random.uniform(-0.1, 0.1)
+                avg_speed += np.random.uniform(-0.1, 0.1)
+                avg_speed = int(avg_speed)
+                new_custom_rewards = {}
+
+                temp = (
+                    self.custom_rewards["closer_to_good"]
+                    + partner.custom_rewards["closer_to_good"]
+                ) / 2 + np.random.uniform(-0.1, 0.1)
+                new_custom_rewards["closer_to_good"] = temp
+                temp = (
+                    self.custom_rewards["further_from_good"]
+                    + partner.custom_rewards["further_from_good"]
+                ) / 2 + np.random.uniform(-0.1, 0.1)
+                new_custom_rewards["further_from_good"] = temp
+                temp = (
+                    self.custom_rewards["closer_to_bad"]
+                    + partner.custom_rewards["closer_to_bad"]
+                ) / 2 + np.random.uniform(-0.1, 0.1)
+                new_custom_rewards["closer_to_bad"] = temp
+                # Create a new baby with the averaged and randomized attributes
+                baby = QLearningAgent(self.q_table)
+                baby.attractiveness = avg_attractiveness
+                baby.reproductive_urge = avg_reproductive_urge
+                baby.custom_rewards = new_custom_rewards
+                baby.state = self.state
+                baby.speed = avg_speed
+
+                # Add the baby to the appropriate list based on the parent's type
+                if self.enemy:
+                    baby_red_squares.append(baby)
+                else:
+                    baby_black_squares.append(baby)
+
+                # Add the baby to the appropriate list based on the parent's type
+                if self.enemy:
+                    baby_red_squares.append(baby)
+                else:
+                    baby_black_squares.append(baby)
 
     def die(self):
         global blue_squares, baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares
@@ -164,8 +247,8 @@ class QLearningAgent:
 e = QLearningAgent(q_table_red)
 e.enemy = True
 adult_black_squares = [QLearningAgent(q_table_black), QLearningAgent(q_table_black)]
-baby_black_squares = [e]
-adult_red_squares = []
+baby_black_squares = []
+adult_red_squares = [e, e]
 baby_red_squares = []
 
 # Score variables
