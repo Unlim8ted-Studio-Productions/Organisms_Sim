@@ -27,9 +27,9 @@ GREEN = (0, 255, 0)
 PURPLE = (128, 0, 128)  # Color for walls
 
 # Define the Q-learning parameters
-learning_rate = 0.8
-discount_factor = 0.5
-epsilon = 0.1
+learning_rate = 0.5
+discount_factor = 0.8
+epsilon = 0.2
 
 # Define the Q-tables for black and red squares
 q_table_black = np.zeros(
@@ -56,25 +56,8 @@ class Wall:
 
 
 # Define the agent
-class Mate:
-    def __init__(self, agent, attractiveness):
-        self.agent = agent
-        self.attractiveness = attractiveness
-
-    def accept_mate(self, partner):
-        acceptance_probability = min(
-            self.attractiveness + partner.reproductive_urge, 1.0
-        )
-        return np.random.uniform(0, 1) < acceptance_probability
-
-
 class QLearningAgent:
-    def __init__(
-        self,
-        q_table,
-        custom_rewards=None,
-        is_mother=True if random.randint(0, 1) == 0 else {False},
-    ):
+    def __init__(self, q_table, custom_rewards=None):
         self.state = (0, 0)
         self.speed = 5  # Initial speed of the agent
         self.q_table = q_table
@@ -91,48 +74,6 @@ class QLearningAgent:
         }
         self.wall_health = 0
         self.wall_cooldown = 0
-        self.is_mother = is_mother
-        self.baby_dead_notification = False
-        self.reproductive_urge = np.random.uniform(0.5, 4.5)
-        self.is_female = is_mother
-        self.attractiveness = np.random.uniform(0.5, 4.5)
-
-    def create_baby(self, mate):
-        if mate and mate.accept_mate(self):
-            if self.is_female != mate.agent.is_female:
-                baby = QLearningAgent(self.q_table, custom_rewards=self.custom_rewards)
-                baby.enemy = self.enemy
-                if self.enemy:
-                    self.reward += 3
-                else:
-                    self.reward += 0.1
-                baby.state = self.state
-
-                baby.reproductive_urge = (
-                    self.reproductive_urge + mate.agent.reproductive_urge
-                ) / 2 + random.uniform(
-                    -0.1, 0.1
-                )  # Adding a small random offset
-                baby.food = (self.food + mate.agent.food) / 2 + random.uniform(
-                    -0.1, 0.1
-                )
-                baby.speed = (self.speed + mate.agent.speed) / 2 + random.uniform(
-                    -0.1, 0.1
-                )
-                baby.attractiveness = (
-                    self.attractiveness + mate.agent.attractiveness
-                ) / 2 + random.uniform(-0.1, 0.1)
-
-                baby.q_table = self.q_table
-                baby.custom_rewards = self.custom_rewards
-                baby.is_mother = random.choice([True, False])
-                if baby.enemy:
-                    baby_red_squares.append(baby)
-                else:
-                    baby_black_squares.append(baby)
-
-    def update_reproductive_urge(self):
-        self.reproductive_urge += np.random.uniform(-0.1, 0.1)
 
     def create_wall(self):
         global walls
@@ -194,10 +135,10 @@ class QLearningAgent:
             x = min(WIDTH - 20, x + self.speed)
             self.food - 0.001
         elif action == 5:
-            #
-            self.create_baby(None)
-        # elif action == 6:
-        #    self.create_wall()
+            self.food -= random.randint(3, 6)
+            self.create_baby()
+        elif action == 6:
+            self.create_wall()
 
         return x, y
 
@@ -235,6 +176,27 @@ class QLearningAgent:
 
         self.state = next_state
 
+    def create_baby(self):
+        global baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares, MAX_CREATURES
+        baby = QLearningAgent(self.q_table, custom_rewards=self.custom_rewards)
+        baby.enemy = self.enemy
+        self.reward += 1.5
+        baby.state = self.state
+
+        if (
+            len(
+                baby_black_squares
+                + baby_red_squares
+                + adult_black_squares
+                + adult_red_squares
+            )
+            <= MAX_CREATURES
+        ):
+            if baby.enemy:
+                baby_red_squares.append(baby)
+            else:
+                baby_black_squares.append(baby)
+
     def die(self):
         global blue_squares, baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares
         blue_squares.append(pygame.Rect(self.state[0], self.state[1], 20, 20))
@@ -257,15 +219,10 @@ class QLearningAgent:
 
 
 # Lists for cubes
-e = QLearningAgent(q_table_red, is_mother=True)
-i = QLearningAgent(q_table_red, is_mother=False)
+e = QLearningAgent(q_table_red)
 e.enemy = True
-i.enemy = True
-adult_black_squares = [
-    QLearningAgent(q_table_black, is_mother=True),
-    QLearningAgent(q_table_black, is_mother=False),
-]
-baby_black_squares = [e, i]
+adult_black_squares = [QLearningAgent(q_table_black), QLearningAgent(q_table_black)]
+baby_black_squares = [e]
 adult_red_squares = []
 baby_red_squares = []
 
@@ -292,13 +249,9 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_r:
                 # Reset simulation when 'r' is pressed
-                e = QLearningAgent(q_table_red, is_mother=True)
-                i = QLearningAgent(q_table_red, is_mother=False)
-                e.enemy = True
-                i.enemy = True
                 adult_black_squares = [QLearningAgent(q_table_black) for _ in range(2)]
                 baby_black_squares = []
-                adult_red_squares = [e, i]
+                adult_red_squares = [e]
                 baby_red_squares = []
                 green_squares = []
                 blue_squares = []
@@ -326,66 +279,9 @@ while running:
                     agent_red.q_table[agent_red.state[0], agent_red.state[1]],
                 )
 
-    for black_square in adult_black_squares:
-        for red_square in adult_red_squares:
-            for other_black_square in adult_black_squares:
-                if np.random.uniform(0, 1) < red_square.reproductive_urge:
-                    size = black_square.food // 2 + 20
-                    if size > 50:
-                        size = 50
-                    size = abs(size)
-                    othersize = other_black_square.food // 2 + 20
-                    if size > 50:
-                        size = 50
-                    size = abs(size)
-                    if pygame.Rect(
-                        black_square.state[0], black_square.state[1], size, size
-                    ).colliderect(
-                        pygame.Rect(
-                            other_black_square.state[0],
-                            other_black_square.state[1],
-                            othersize,
-                            othersize,
-                        )
-                    ):
-                        potential_mate = other_black_square
-                        mate = Mate(
-                            potential_mate, attractiveness=potential_mate.food / 10
-                        )
-                        if black_square.food >= 3:
-                            black_square.create_baby(mate)
-                            black_square.food -= random.randint(3, 6)
-                for other_red_square in adult_red_squares:
-                    if np.random.uniform(0, 1) < red_square.reproductive_urge:
-                        size = red_square.food // 2 + 20
-                        if size > 50:
-                            size = 50
-                        size = abs(size)
-                        othersize = other_red_square.food // 2 + 20
-                        if size > 50:
-                            size = 50
-                        size = abs(size)
-                        if pygame.Rect(
-                            red_square.state[0], red_square.state[1], size, size
-                        ).colliderect(
-                            pygame.Rect(
-                                other_red_square.state[0],
-                                other_red_square.state[1],
-                                othersize,
-                                othersize,
-                            )
-                        ):
-                            potential_mate = other_red_square
-                            mate = Mate(
-                                potential_mate, attractiveness=potential_mate.food / 10
-                            )
-                            if red_square.food >= 6:
-                                red_square.create_baby(mate)
-                                red_square.food -= random.randint(3, 6)
-
     # Choose an action for the black square
     for black_square in adult_black_squares + baby_black_squares:
-        black_square.update_reproductive_urge()
+        black_square.reward = 0  # Reset reward for each step
         black_action = black_square.choose_action()
         black_next_state = black_square.take_action(black_action)
 
@@ -444,7 +340,7 @@ while running:
 
     # Choose an action for the red square
     for red_square in adult_red_squares + baby_red_squares:
-        red_square.update_reproductive_urge()
+        red_square.reward = 0  # Reset reward for each step
         red_action = red_square.choose_action()
         red_next_state = red_square.take_action(red_action)
 
@@ -488,7 +384,7 @@ while running:
         for blue in blue_squares:
             if blue.collidepoint((creature.state[0], creature.state[1])):
                 if creature.enemy:
-                    creature.food += 3
+                    creature.food += 0.3
                 else:
                     creature.food += 9
                 try:
@@ -529,7 +425,6 @@ while running:
 
         if size > 50:
             size = 50
-        size = abs(size)
         pygame.draw.rect(
             screen,
             BLACK,
@@ -547,7 +442,6 @@ while running:
 
         if size > 50:
             size = 50
-        size = abs(size)
 
         pygame.draw.rect(
             screen,
