@@ -407,14 +407,24 @@ while running:
     screen.fill(WHITE)
     # Update and draw adult black squares
     for black_square in adult_black_squares:
+        size = black_square.food // 2
+        if size > 50:
+            size = 50
+        size = abs(size)
+
         pygame.draw.rect(
-            screen, BLACK, (black_square.state[0], black_square.state[1], 20, 20)
+            screen, BLACK, (black_square.state[0], black_square.state[1], size, size)
         )
 
     # Update and draw adult red squares
     for red_square in adult_red_squares:
+        size = red_square.food // 2
+        if size > 50:
+            size = 50
+        size = abs(size)
+
         pygame.draw.rect(
-            screen, RED, (red_square.state[0], red_square.state[1], 20, 20)
+            screen, RED, (red_square.state[0], red_square.state[1], size, size)
         )
 
     # Update and draw adult red squares
