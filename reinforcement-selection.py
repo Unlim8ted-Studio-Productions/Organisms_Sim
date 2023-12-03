@@ -1,4 +1,6 @@
+from itertools import count
 import random
+from matplotlib import pyplot as plt
 import pygame
 import numpy as np
 import psutil
@@ -12,6 +14,7 @@ FPS = 30
 BABY_GROWTH_TIME = 120  # Frames for a baby to grow into an adult
 BABY_RADIUS = 30  # Radius within which a baby can be eaten
 MAX_CREATURES = psutil.cpu_count(logical=False) * 25
+TIME_POINTS = 500  # Adjust the number of time points as needed
 
 # Define colors
 WHITE = (255, 255, 255)
@@ -23,6 +26,7 @@ GREEN = (0, 255, 0)
 learning_rate = 0.8
 discount_factor = 0.95
 epsilon = 0.1
+epsilon_decay = 0.995  # Decay factor for epsilon
 
 # Define the Q-tables for black and red squares
 q_table_black = np.zeros((WIDTH, HEIGHT, 5))  # 5 actions (up, down, left, right, baby)
@@ -37,6 +41,26 @@ pygame.display.set_caption("life sim")
 
 # Clock to control the frame rate
 clock = pygame.time.Clock()
+time = count()
+time_points = range(TIME_POINTS)
+
+
+def control_creature(creature):
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_LEFT]:
+        creature.state = (max(0, creature.state[0] - creature.speed), creature.state[1])
+    elif keys[pygame.K_RIGHT]:
+        creature.state = (
+            min(WIDTH - 20, creature.state[0] + creature.speed),
+            creature.state[1],
+        )
+    elif keys[pygame.K_UP]:
+        creature.state = (creature.state[0], max(0, creature.state[1] - creature.speed))
+    elif keys[pygame.K_DOWN]:
+        creature.state = (
+            creature.state[0],
+            min(HEIGHT - 20, creature.state[1] + creature.speed),
+        )
 
 
 # Define the agent
@@ -172,6 +196,14 @@ baby_red_squares = []
 black_reward = 0
 red_reward = 0
 
+# Lists to store data for plotting
+black_life_data = []
+red_life_data = []
+black_life_expectancy_data = []
+red_life_expectancy_data = []
+black_speed_data = []
+red_speed_data = []
+
 # Variables for green squares
 green_squares = []
 blue_squares = []
@@ -179,7 +211,7 @@ blue_squares = []
 # Main game loop
 running = True
 baby_frame_counter = 0
-
+controlled_creature = None
 
 while running:
     for event in pygame.event.get():
@@ -207,6 +239,24 @@ while running:
                     f"BabyRed {index} Q-values:",
                     agent_red.q_table[agent_red.state[0], agent_red.state[1]],
                 )
+                # Check for mouse click to select a creature to control
+        if pygame.mouse.get_pressed()[0]:  # Left mouse button clicked
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            for creature in (
+                adult_black_squares
+                + adult_red_squares
+                + baby_black_squares
+                + baby_red_squares
+            ):
+                if pygame.Rect(
+                    creature.state[0], creature.state[1], 20, 20
+                ).colliderect(pygame.Rect(mouse_x, mouse_y, 1, 1)):
+                    controlled_creature = creature
+                    break
+
+    if controlled_creature is not None:
+        # Handle keyboard input to control the selected creature
+        control_creature(controlled_creature)
 
     # Choose an action for the black square
     for black_square in adult_black_squares + baby_black_squares:
@@ -387,7 +437,83 @@ while running:
     else:
         index = random.randint(0, len(green_squares))
         green_squares.pop(index)
+    # Decay epsilon over time
+    epsilon *= epsilon_decay
+    epsilon = max(0.01, epsilon)  # Ensure epsilon doesn't go below a minimum value
 
+    # Calculate and store data for plotting
+    black_life_data.append(
+        sum([creature.food for creatures in adult_black_squares + baby_black_squares])
+    )
+    red_life_data.append(
+        sum([creature.food for creatures in adult_red_squares + baby_red_squares])
+    )
+
+    black_life_expectancy_data.append(
+        np.mean([creature.food for creature in adult_black_squares])
+    )
+    red_life_expectancy_data.append(
+        np.mean([creature.food for creature in adult_red_squares])
+    )
+
+    black_speed_data.append(
+        np.mean(
+            [creature.speed for creature in adult_black_squares + baby_black_squares]
+        )
+    )
+    red_speed_data.append(
+        np.mean([creature.speed for creature in adult_red_squares + baby_red_squares])
+    )
+
+    # Plotting
+    plt.clf()
+
+    # Plot amount of life for each species over time
+    plt.subplot(3, 1, 1)
+    plt.plot(
+        time_points[: len(black_life_data)],
+        black_life_data,
+        label="Black",
+        color="black",
+    )
+    plt.plot(time_points[: len(red_life_data)], red_life_data, label="Red", color="red")
+    plt.title("Amount of Life Over Time")
+    plt.legend()
+
+    # Plot life expectancy for each species over time
+    plt.subplot(3, 1, 2)
+    plt.plot(
+        time_points[: len(black_life_expectancy_data)],
+        black_life_expectancy_data,
+        label="Black",
+        color="black",
+    )
+    plt.plot(
+        time_points[: len(red_life_expectancy_data)],
+        red_life_expectancy_data,
+        label="Red",
+        color="red",
+    )
+    plt.title("Life Expectancy Over Time")
+    plt.legend()
+
+    # Plot speed for each species over time
+    plt.subplot(3, 1, 3)
+    plt.plot(
+        time_points[: len(black_speed_data)],
+        black_speed_data,
+        label="Black",
+        color="black",
+    )
+    plt.plot(
+        time_points[: len(red_speed_data)], red_speed_data, label="Red", color="red"
+    )
+    plt.title("Average Speed Over Time")
+    plt.legend()
+
+    # Show the plot
+    plt.tight_layout()
+    plt.pause(0.01)
     # Update the display
     pygame.display.flip()
 
