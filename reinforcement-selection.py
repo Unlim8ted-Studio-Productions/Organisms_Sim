@@ -232,6 +232,8 @@ def main(
     red_life_expectancy_data,
     baby_black_life_expectancy_data,
     baby_red_life_expectancy_data,
+    baby_black_life_data,
+    baby_red_life_data,
     black_speed_data,
     red_speed_data,
     plantfood_data,
@@ -481,16 +483,15 @@ def main(
 
         # Calculate and store data for plotting
         black_life_data.append(
-            sum(
-                [
-                    creature.food
-                    for creatures in adult_black_squares + baby_black_squares
-                ]
-            )
+            sum([creature.food for creatures in adult_black_squares])
         )
-        red_life_data.append(
-            sum([creature.food for creatures in adult_red_squares + baby_red_squares])
+        baby_black_life_data.append(
+            sum([creature.food for creatures in baby_black_squares])
         )
+        baby_red_life_data.append(
+            sum([creature.food for creatures in baby_red_squares])
+        )
+        red_life_data.append(sum([creature.food for creatures in adult_red_squares]))
 
         black_life_expectancy_data.append(
             np.mean([creature.food for creature in adult_black_squares])
@@ -530,11 +531,26 @@ def main(
         plt.plot(
             time_points[: len(black_life_data)],
             black_life_data,
-            label="Black",
+            label="Adult Herbivore",
             color="black",
         )
         plt.plot(
-            time_points[: len(red_life_data)], red_life_data, label="Red", color="red"
+            time_points[: len(red_life_data)],
+            red_life_data,
+            label="Adult Carnivore",
+            color="red",
+        )
+        plt.plot(
+            time_points[: len(black_life_data)],
+            baby_red_life_data,
+            label="Baby Carnivore",
+            color="blue",
+        )
+        plt.plot(
+            time_points[: len(black_life_data)],
+            baby_black_life_data,
+            label="Baby Herbivore",
+            color="green",
         )
         plt.title("Amount of Life Over Time")
         plt.legend()
@@ -543,14 +559,26 @@ def main(
         plt.plot(
             time_points[: len(black_life_expectancy_data)],
             black_life_expectancy_data,
-            label="Herbivore",
+            label="Adult Herbivore",
             color="black",
         )
         plt.plot(
             time_points[: len(red_life_expectancy_data)],
             red_life_expectancy_data,
-            label="Carnivore",
+            label="Adult Carnivore",
             color="red",
+        )
+        plt.plot(
+            time_points[: len(black_life_data)],
+            baby_red_life_expectancy_data,
+            label="Baby Carnivore",
+            color="blue",
+        )
+        plt.plot(
+            time_points[: len(black_life_data)],
+            baby_black_life_expectancy_data,
+            label="Baby Herbivore",
+            color="green",
         )
         plt.title("Life Expectancy Over Time")
         plt.legend()
@@ -637,6 +665,8 @@ if __name__ == "__main__":
         red_life_data,
         black_life_expectancy_data,
         red_life_expectancy_data,
+        [],
+        [],
         [],
         [],
         black_speed_data,
