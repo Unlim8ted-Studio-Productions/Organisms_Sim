@@ -177,7 +177,9 @@ class QLearningAgent:
                 q_table2_tensor = torch.tensor(q_table2, dtype=torch.float32).cpu()
 
             # Compute the average of the Q-tables on the GPU
-            average_table_tensor = (q_table1_tensor + q_table2_tensor) / 2.0
+            average_table_tensor = (
+                q_table1_tensor + q_table2_tensor
+            ) / 2.0 + random.choice([-0.1, 0.1])
 
             # Transfer the result back to the CPU and convert it to a Python list
             average_table = average_table_tensor.cpu().numpy()
