@@ -74,6 +74,7 @@ class QLearningAgent:
         self.food = 0
         self.reward = 0
         self.enemy = False
+        self.attractiveness = random.randint(0, 5)
 
     def choose_action(self):
         if np.random.uniform(0, 1) < epsilon:
@@ -106,8 +107,27 @@ class QLearningAgent:
             x = min(WIDTH - 20, x + self.speed)
             self.food - 0.001
         elif action == 4:
-            self.food -= random.randint(3, 6)
-            self.create_baby()
+            global blue_squares, baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares
+            mates = [
+                mate
+                for mate in blue_squares
+                + baby_black_squares
+                + baby_red_squares
+                + adult_black_squares
+                + adult_red_squares
+                if pygame.Rect(self.x, self.y, 20, 20).colliderect(
+                    pygame.Rect(mate.x, mate.y, 20, 20)
+                )
+            ]
+            if mates:
+                self.mate = [
+                    mate
+                    for mate in mates
+                    if mate.attractiveness
+                    == sorted([mate.attractiveness for mate in mates], reverse=True)[0]
+                ][0]
+                self.food -= random.randint(3, 6)
+                self.create_baby()
 
         return x, y
 
@@ -147,8 +167,13 @@ class QLearningAgent:
     def create_baby(self):
         global baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares, MAX_CREATURES
         baby = QLearningAgent(self.q_table)
-        baby.enemy = self.enemy
+        if self.enemy == self.mate.enemy:
+            baby.enemy = self.enemy
+        else:
+            baby.enemy = random.choice([True, False])
         baby.state = self.state
+        baby.speed = (self.speed + self.mate.speed) // 2
+        baby.parent = self
         if (
             len(
                 baby_black_squares
@@ -184,85 +209,75 @@ class QLearningAgent:
             None
 
 
-# Lists for cubes
-e = QLearningAgent(q_table_red)
-e.enemy = True
-adult_black_squares = [QLearningAgent(q_table_black), QLearningAgent(q_table_black)]
-baby_black_squares = [e]
-adult_red_squares = []
-baby_red_squares = []
+def main(
+    adult_black_squares,
+    baby_black_squares,
+    adult_red_squares,
+    baby_red_squares,
+    black_life_data,
+    red_life_data,
+    black_life_expectancy_data,
+    red_life_expectancy_data,
+    black_speed_data,
+    red_speed_data,
+    plantfood_data,
+    meatfood_data,
+    green_squares,
+    blue_squares,
+    baby_frame_counter,
+    controlled_creature,
+):
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                # Add these print statements for debugging
+                for index, agent_black in enumerate(adult_black_squares):
+                    print(
+                        f"Black {index} Q-values:",
+                        agent_black.q_table[agent_black.state[0], agent_black.state[1]],
+                    )
+                for index, agent_black in enumerate(baby_black_squares):
+                    print(
+                        f"BabyBlack {index} Q-values:",
+                        agent_black.q_table[agent_black.state[0], agent_black.state[1]],
+                    )
+                for index, agent_red in enumerate(adult_red_squares):
+                    print(
+                        f"Red {index} Q-values:",
+                        agent_red.q_table[agent_red.state[0], agent_red.state[1]],
+                    )
+                for index, agent_red in enumerate(baby_red_squares):
+                    print(
+                        f"BabyRed {index} Q-values:",
+                        agent_red.q_table[agent_red.state[0], agent_red.state[1]],
+                    )
+                    # Check for mouse click to select a creature to control
+            if pygame.mouse.get_pressed()[0]:  # Left mouse button clicked
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                for creature in (
+                    adult_black_squares
+                    + adult_red_squares
+                    + baby_black_squares
+                    + baby_red_squares
+                ):
+                    if pygame.Rect(
+                        creature.state[0], creature.state[1], 20, 20
+                    ).colliderect(pygame.Rect(mouse_x, mouse_y, 1, 1)):
+                        controlled_creature = creature
+                        break
 
-# Score variables
-black_reward = 0
-red_reward = 0
+        if controlled_creature is not None:
+            # Handle keyboard input to control the selected creature
+            control_creature(controlled_creature)
 
-# Lists to store data for plotting
-black_life_data = []
-red_life_data = []
-black_life_expectancy_data = []
-red_life_expectancy_data = []
-black_speed_data = []
-red_speed_data = []
-
-# Variables for green squares
-green_squares = []
-blue_squares = []
-
-# Main game loop
-running = True
-baby_frame_counter = 0
-controlled_creature = None
-
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == pygame.KEYDOWN:
-            # Add these print statements for debugging
-            for index, agent_black in enumerate(adult_black_squares):
-                print(
-                    f"Black {index} Q-values:",
-                    agent_black.q_table[agent_black.state[0], agent_black.state[1]],
-                )
-            for index, agent_black in enumerate(baby_black_squares):
-                print(
-                    f"BabyBlack {index} Q-values:",
-                    agent_black.q_table[agent_black.state[0], agent_black.state[1]],
-                )
-            for index, agent_red in enumerate(adult_red_squares):
-                print(
-                    f"Red {index} Q-values:",
-                    agent_red.q_table[agent_red.state[0], agent_red.state[1]],
-                )
-            for index, agent_red in enumerate(baby_red_squares):
-                print(
-                    f"BabyRed {index} Q-values:",
-                    agent_red.q_table[agent_red.state[0], agent_red.state[1]],
-                )
-                # Check for mouse click to select a creature to control
-        if pygame.mouse.get_pressed()[0]:  # Left mouse button clicked
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            for creature in (
-                adult_black_squares
-                + adult_red_squares
-                + baby_black_squares
-                + baby_red_squares
-            ):
-                if pygame.Rect(
-                    creature.state[0], creature.state[1], 20, 20
-                ).colliderect(pygame.Rect(mouse_x, mouse_y, 1, 1)):
-                    controlled_creature = creature
-                    break
-
-    if controlled_creature is not None:
-        # Handle keyboard input to control the selected creature
-        control_creature(controlled_creature)
-
-    # Choose an action for the black square
-    for black_square in adult_black_squares + baby_black_squares:
-        black_square.reward = 0  # Reset reward for each step
-        black_action = black_square.choose_action()
-        black_next_state = black_square.take_action(black_action)
+        # Choose an action for the black square
+        for black_square in adult_black_squares + baby_black_squares:
+            black_square.reward = 0  # Reset reward for each step
+            black_action = black_square.choose_action()
+            black_next_state = black_square.take_action(black_action)
 
         # Check if black square collides with red square
         for red_square in adult_red_squares:
@@ -317,11 +332,11 @@ while running:
         # Update the Q-table for the black square
         black_square.update_q_table(black_action, black_next_state, black_square.reward)
 
-    # Choose an action for the red square
-    for red_square in adult_red_squares + baby_red_squares:
-        red_square.reward = 0  # Reset reward for each step
-        red_action = red_square.choose_action()
-        red_next_state = red_square.take_action(red_action)
+        # Choose an action for the red square
+        for red_square in adult_red_squares + baby_red_squares:
+            red_square.reward = 0  # Reset reward for each step
+            red_action = red_square.choose_action()
+            red_next_state = red_square.take_action(red_action)
 
         # Check if red square collides with black square
         for black_square in adult_black_squares + baby_black_squares:
@@ -357,168 +372,258 @@ while running:
         # Update the Q-table for the red square
         red_square.update_q_table(red_action, red_next_state, red_square.reward)
 
-    for creature in (
-        adult_black_squares + adult_red_squares + baby_black_squares + baby_red_squares
-    ):
-        for blue in blue_squares:
-            if blue.collidepoint((creature.state[0], creature.state[1])):
-                if creature.enemy:
-                    creature.food += 0.3
-                else:
-                    creature.food += 9
-                try:
-                    blue_squares.remove(blue)
-                except:
-                    None
+        for creature in (
+            adult_black_squares
+            + adult_red_squares
+            + baby_black_squares
+            + baby_red_squares
+        ):
+            for blue in blue_squares:
+                if blue.collidepoint((creature.state[0], creature.state[1])):
+                    if creature.enemy:
+                        creature.food += 0.3
+                    else:
+                        creature.food += 9
+                    try:
+                        blue_squares.remove(blue)
+                    except:
+                        None
 
-    screen.fill(WHITE)
-    # Update and draw adult black squares
-    for black_square in adult_black_squares:
-        pygame.draw.rect(
-            screen, BLACK, (black_square.state[0], black_square.state[1], 20, 20)
-        )
-
-    # Update and draw adult red squares
-    for red_square in adult_red_squares:
-        pygame.draw.rect(
-            screen, RED, (red_square.state[0], red_square.state[1], 20, 20)
-        )
-
-    # Update and draw adult red squares
-    for blue_square in blue_squares:
-        pygame.draw.rect(screen, (0, 0, 255), blue_square)
-
-    # Update and draw baby black squares
-    for baby_black in baby_black_squares:
-        baby_frame_counter += 1
-        if baby_frame_counter >= BABY_GROWTH_TIME:
-            adult_black_squares.append(baby_black)
-            baby_black_squares.remove(baby_black)
-        else:
-            baby_black.choose_action()
-            baby_black_next_state = baby_black.take_action(baby_black.choose_action())
-            baby_black.update_q_table(
-                0, baby_black_next_state, 0
-            )  # No reward for babies
+        screen.fill(WHITE)
+        # Update and draw adult black squares
+        for black_square in adult_black_squares:
             pygame.draw.rect(
-                screen,
-                BLACK,
-                (baby_black_next_state[0], baby_black_next_state[1], 5, 5),
+                screen, BLACK, (black_square.state[0], black_square.state[1], 20, 20)
             )
 
-    # Update and draw baby red squares
-    for baby_red in baby_red_squares:
-        baby_frame_counter += 1
-        if baby_frame_counter >= BABY_GROWTH_TIME:
-            adult_red_squares.append(baby_red)
-            baby_red_squares.remove(baby_red)
-        else:
-            baby_red.choose_action()
-            baby_red_next_state = baby_red.take_action(baby_red.choose_action())
-            baby_red.update_q_table(0, baby_red_next_state, 0)  # No reward for babies
+        # Update and draw adult red squares
+        for red_square in adult_red_squares:
             pygame.draw.rect(
-                screen, RED, (baby_red_next_state[0], baby_red_next_state[1], 5, 5)
+                screen, RED, (red_square.state[0], red_square.state[1], 20, 20)
             )
 
-    # Draw and update green squares
-    for green_square in green_squares:
-        pygame.draw.rect(screen, GREEN, green_square)
+        # Update and draw adult red squares
+        for blue_square in blue_squares:
+            pygame.draw.rect(screen, (0, 0, 255), blue_square)
 
-    # Spawn a green square randomly
-    if len(green_squares) <= MAX_CREATURES:
-        if np.random.uniform(0, 1) < 0.01:
-            new_square = pygame.Rect(
-                np.random.randint(0, WIDTH - 20),
-                np.random.randint(0, HEIGHT - 20),
-                20,
-                20,
+        # Update and draw baby black squares
+        for baby_black in baby_black_squares:
+            baby_frame_counter += 1
+            if baby_frame_counter >= BABY_GROWTH_TIME:
+                adult_black_squares.append(baby_black)
+                baby_black_squares.remove(baby_black)
+            else:
+                baby_black.choose_action()
+                baby_black_next_state = baby_black.take_action(
+                    baby_black.choose_action()
+                )
+                baby_black.update_q_table(
+                    0, baby_black_next_state, 0
+                )  # No reward for babies
+                pygame.draw.rect(
+                    screen,
+                    BLACK,
+                    (baby_black_next_state[0], baby_black_next_state[1], 5, 5),
+                )
+
+        # Update and draw baby red squares
+        for baby_red in baby_red_squares:
+            baby_frame_counter += 1
+            if baby_frame_counter >= BABY_GROWTH_TIME:
+                adult_red_squares.append(baby_red)
+                baby_red_squares.remove(baby_red)
+            else:
+                baby_red.choose_action()
+                baby_red_next_state = baby_red.take_action(baby_red.choose_action())
+                baby_red.update_q_table(
+                    0, baby_red_next_state, 0
+                )  # No reward for babies
+                pygame.draw.rect(
+                    screen, RED, (baby_red_next_state[0], baby_red_next_state[1], 5, 5)
+                )
+
+        # Draw and update green squares
+        for green_square in green_squares:
+            pygame.draw.rect(screen, GREEN, green_square)
+
+        # Spawn a green square randomly
+        if len(green_squares) <= MAX_CREATURES:
+            if np.random.uniform(0, 1) < 0.01:
+                new_square = pygame.Rect(
+                    np.random.randint(0, WIDTH - 20),
+                    np.random.randint(0, HEIGHT - 20),
+                    20,
+                    20,
+                )
+                green_squares.append(new_square)
+        else:
+            index = random.randint(0, len(green_squares))
+            green_squares.pop(index)
+            # Decay epsilon over time
+            epsilon *= epsilon_decay
+            epsilon = max(
+                0.01, epsilon
+            )  # Ensure epsilon doesn't go below a minimum value
+
+        # Calculate and store data for plotting
+        black_life_data.append(
+            sum(
+                [
+                    creature.food
+                    for creatures in adult_black_squares + baby_black_squares
+                ]
             )
-            green_squares.append(new_square)
-    else:
-        index = random.randint(0, len(green_squares))
-        green_squares.pop(index)
-    # Decay epsilon over time
-    epsilon *= epsilon_decay
-    epsilon = max(0.01, epsilon)  # Ensure epsilon doesn't go below a minimum value
-
-    # Calculate and store data for plotting
-    black_life_data.append(
-        sum([creature.food for creatures in adult_black_squares + baby_black_squares])
-    )
-    red_life_data.append(
-        sum([creature.food for creatures in adult_red_squares + baby_red_squares])
-    )
-
-    black_life_expectancy_data.append(
-        np.mean([creature.food for creature in adult_black_squares])
-    )
-    red_life_expectancy_data.append(
-        np.mean([creature.food for creature in adult_red_squares])
-    )
-
-    black_speed_data.append(
-        np.mean(
-            [creature.speed for creature in adult_black_squares + baby_black_squares]
         )
-    )
-    red_speed_data.append(
-        np.mean([creature.speed for creature in adult_red_squares + baby_red_squares])
-    )
+        red_life_data.append(
+            sum([creature.food for creatures in adult_red_squares + baby_red_squares])
+        )
 
-    # Plotting
-    plt.clf()
+        black_life_expectancy_data.append(
+            np.mean([creature.food for creature in adult_black_squares])
+        )
+        red_life_expectancy_data.append(
+            np.mean([creature.food for creature in adult_red_squares])
+        )
 
-    # Plot amount of life for each species over time
-    plt.subplot(3, 1, 1)
-    plt.plot(
-        time_points[: len(black_life_data)],
+        black_speed_data.append(
+            np.mean(
+                [
+                    creature.speed
+                    for creature in adult_black_squares + baby_black_squares
+                ]
+            )
+        )
+        red_speed_data.append(
+            np.mean(
+                [creature.speed for creature in adult_red_squares + baby_red_squares]
+            )
+        )
+        plantfood_data.append(len(green_squares))
+        meatfood_data.append(len(blue_squares))
+
+        # Plotting
+        plt.clf()
+
+        # Adjust the subplot configuration to 4 rows, 1 column
+        plt.subplot(4, 1, 1)  # Amount of life over time
+        plt.plot(
+            time_points[: len(black_life_data)],
+            black_life_data,
+            label="Black",
+            color="black",
+        )
+        plt.plot(
+            time_points[: len(red_life_data)], red_life_data, label="Red", color="red"
+        )
+        plt.title("Amount of Life Over Time")
+        plt.legend()
+
+        plt.subplot(4, 1, 2)  # Life expectancy over time
+        plt.plot(
+            time_points[: len(black_life_expectancy_data)],
+            black_life_expectancy_data,
+            label="Herbivore",
+            color="black",
+        )
+        plt.plot(
+            time_points[: len(red_life_expectancy_data)],
+            red_life_expectancy_data,
+            label="Carnivore",
+            color="red",
+        )
+        plt.title("Life Expectancy Over Time")
+        plt.legend()
+
+        plt.subplot(4, 1, 3)  # Average speed over time
+        plt.plot(
+            time_points[: len(black_speed_data)],
+            black_speed_data,
+            label="Herbivore average speed",
+            color="black",
+        )
+        plt.plot(
+            time_points[: len(red_speed_data)],
+            red_speed_data,
+            label="Carnivore average speed",
+            color="red",
+        )
+        plt.title("Average Speed Over Time")
+        plt.legend()
+
+        plt.subplot(4, 1, 4)  # Average food squares over time
+        plt.plot(
+            time_points[: len(plantfood_data)],
+            plantfood_data,
+            label="Plant food",
+            color="green",
+        )
+        plt.plot(
+            time_points[: len(meatfood_data)],
+            meatfood_data,
+            label="Non-plant food",
+            color="blue",
+        )
+        plt.title("Average Food Squares Over Time")
+        plt.legend()
+
+        # Show the plot
+        plt.tight_layout()
+        plt.pause(0.01)
+        # Update the display
+        pygame.display.flip()
+
+        # Control the frame rate
+        # clock.tick(FPS)
+
+
+if __name__ == "__main__":
+    # Lists for cubes
+    e = QLearningAgent(q_table_red)
+    e.enemy = True
+    e.speed = 10
+    adult_black_squares = [QLearningAgent(q_table_black), QLearningAgent(q_table_black)]
+    baby_black_squares = []
+    adult_red_squares = [e]
+    baby_red_squares = []
+
+    # Score variables
+    black_reward = 0
+    red_reward = 0
+
+    # Lists to store data for plotting
+    black_life_data = []
+    red_life_data = []
+    black_life_expectancy_data = []
+    red_life_expectancy_data = []
+    black_speed_data = []
+    red_speed_data = []
+    plantfood_data = []
+    meatfood_data = []
+
+    # Variables for green squares
+    green_squares = []
+    blue_squares = []
+
+    # Main game loop
+    baby_frame_counter = 0
+    controlled_creature = None
+    main(
+        adult_black_squares,
+        baby_black_squares,
+        adult_red_squares,
+        baby_red_squares,
         black_life_data,
-        label="Black",
-        color="black",
-    )
-    plt.plot(time_points[: len(red_life_data)], red_life_data, label="Red", color="red")
-    plt.title("Amount of Life Over Time")
-    plt.legend()
-
-    # Plot life expectancy for each species over time
-    plt.subplot(3, 1, 2)
-    plt.plot(
-        time_points[: len(black_life_expectancy_data)],
+        red_life_data,
         black_life_expectancy_data,
-        label="Black",
-        color="black",
-    )
-    plt.plot(
-        time_points[: len(red_life_expectancy_data)],
         red_life_expectancy_data,
-        label="Red",
-        color="red",
-    )
-    plt.title("Life Expectancy Over Time")
-    plt.legend()
-
-    # Plot speed for each species over time
-    plt.subplot(3, 1, 3)
-    plt.plot(
-        time_points[: len(black_speed_data)],
         black_speed_data,
-        label="Black",
-        color="black",
+        red_speed_data,
+        plantfood_data,
+        meatfood_data,
+        green_squares,
+        blue_squares,
+        baby_frame_counter,
+        controlled_creature,
     )
-    plt.plot(
-        time_points[: len(red_speed_data)], red_speed_data, label="Red", color="red"
-    )
-    plt.title("Average Speed Over Time")
-    plt.legend()
-
-    # Show the plot
-    plt.tight_layout()
-    plt.pause(0.01)
-    # Update the display
-    pygame.display.flip()
-
-    # Control the frame rate
-    clock.tick(FPS)
-
 # Quit Pygame
 pygame.quit()
