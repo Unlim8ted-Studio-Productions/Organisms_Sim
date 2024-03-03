@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 import pygame
 import numpy as np
 import psutil
+import torch
 
 
 # Define constants
@@ -107,7 +108,7 @@ class QLearningAgent:
             global blue_squares, baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares
             mates = [
                 mate
-                for mate in blue_squares
+                for mate in []
                 + baby_black_squares
                 + baby_red_squares
                 + adult_black_squares
@@ -165,14 +166,21 @@ class QLearningAgent:
         global baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares, MAX_CREATURES
 
         # print(self.q_table)
-        def average_q_tables(q_table1, q_table2):
-            num_states = len(q_table1)
-            num_actions = len(q_table1[0])
-            average_table = [[0 for _ in range(num_actions)] for _ in range(num_states)]
 
-            for i in range(num_states):
-                for j in range(num_actions):
-                    average_table[i][j] = (q_table1[i][j] + q_table2[i][j]) / 2.0
+        def average_q_tables(q_table1, q_table2):
+            # Convert the Q-tables to PyTorch tensors and transfer them to the GPU
+            if torch.cuda.is_available():
+                q_table1_tensor = torch.tensor(q_table1, dtype=torch.float32).cuda()
+                q_table2_tensor = torch.tensor(q_table2, dtype=torch.float32).cuda()
+            else:
+                q_table1_tensor = torch.tensor(q_table1, dtype=torch.float32).cpu()
+                q_table2_tensor = torch.tensor(q_table2, dtype=torch.float32).cpu()
+
+            # Compute the average of the Q-tables on the GPU
+            average_table_tensor = (q_table1_tensor + q_table2_tensor) / 2.0
+
+            # Transfer the result back to the CPU and convert it to a Python list
+            average_table = average_table_tensor.cpu().numpy()
 
             return average_table
 
