@@ -88,9 +88,6 @@ class QLearningAgent:
     def take_action(self, action):
         x, y = self.state
 
-        if self.enemy:
-            self.speed = 4
-
         if self.food <= -100:
             self.die()
 
@@ -166,12 +163,29 @@ class QLearningAgent:
 
     def create_baby(self):
         global baby_black_squares, baby_red_squares, adult_black_squares, adult_red_squares, MAX_CREATURES
+
+        # print(self.q_table)
+        def average_q_tables(q_table1, q_table2):
+            num_states = len(q_table1)
+            num_actions = len(q_table1[0])
+            average_table = [[0 for _ in range(num_actions)] for _ in range(num_states)]
+
+            for i in range(num_states):
+                for j in range(num_actions):
+                    average_table[i][j] = (q_table1[i][j] + q_table2[i][j]) / 2.0
+
+            return average_table
+
+        q_table = average_q_tables(self.q_table, self.mate.q_table)
+
         baby = QLearningAgent(self.q_table)
         if self.enemy == self.mate.enemy:
             baby.enemy = self.enemy
         else:
             baby.enemy = random.choice([True, False])
         baby.state = self.state
+        baby.speed = (self.speed + self.mate.speed) // 2
+        baby.parent = self
         if (
             len(
                 baby_black_squares
@@ -216,6 +230,8 @@ def main(
     red_life_data,
     black_life_expectancy_data,
     red_life_expectancy_data,
+    baby_black_life_expectancy_data,
+    baby_red_life_expectancy_data,
     black_speed_data,
     red_speed_data,
     plantfood_data,
@@ -483,6 +499,13 @@ def main(
             np.mean([creature.food for creature in adult_red_squares])
         )
 
+        baby_black_life_expectancy_data.append(
+            np.mean([creature.food for creature in baby_black_squares])
+        )
+        baby_red_life_expectancy_data.append(
+            np.mean([creature.food for creature in baby_red_squares])
+        )
+
         black_speed_data.append(
             np.mean(
                 [
@@ -614,6 +637,8 @@ if __name__ == "__main__":
         red_life_data,
         black_life_expectancy_data,
         red_life_expectancy_data,
+        [],
+        [],
         black_speed_data,
         red_speed_data,
         plantfood_data,
