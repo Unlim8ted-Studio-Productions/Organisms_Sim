@@ -115,8 +115,8 @@ class QLearningAgent:
                 + baby_red_squares
                 + adult_black_squares
                 + adult_red_squares
-                if pygame.Rect(self.x, self.y, 20, 20).colliderect(
-                    pygame.Rect(mate.x, mate.y, 20, 20)
+                if pygame.Rect(self.state[0], self.state[1], 20, 20).colliderect(
+                    pygame.Rect(mate.state[0], mate.state[1], 20, 20)
                 )
             ]
             if mates:
@@ -172,8 +172,6 @@ class QLearningAgent:
         else:
             baby.enemy = random.choice([True, False])
         baby.state = self.state
-        baby.speed = (self.speed + self.mate.speed) // 2
-        baby.parent = self
         if (
             len(
                 baby_black_squares
