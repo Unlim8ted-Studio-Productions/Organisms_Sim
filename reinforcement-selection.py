@@ -183,7 +183,6 @@ class QLearningAgent:
 
             # Transfer the result back to the CPU and convert it to a Python list
             average_table = average_table_tensor.cpu().numpy()
-
             return average_table
 
         q_table = average_q_tables(self.q_table, self.mate.q_table)
