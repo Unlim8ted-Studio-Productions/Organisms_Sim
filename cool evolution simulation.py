@@ -120,7 +120,7 @@ class Food:
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Evolution Simulation")
-
+pygame.display.toggle_fullscreen()
 # Create creatures
 creatures = [Creature(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, np.random.uniform(0, 1), np.random.uniform(10, 100), np.random.uniform(1, 2), (255, 255, 255)) for _ in range(NUM_CREATURES)]
 
