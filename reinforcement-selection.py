@@ -67,9 +67,9 @@ def control_creature(creature):
 # Define the agent
 class QLearningAgent:
     def __init__(self, q_table):
-        self.state = (0, 0)
+        self.state = np.array([0,0])
         self.speed = 5  # Initial speed of the agent
-        self.q_table = q_table
+        self.q_table = np.array(q_table)
         self.reward = 0
         self.prev_distance = None  # Store the previous distance
         self.food = 0
