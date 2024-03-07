@@ -53,7 +53,16 @@ class Creature:
         self.x += np.cos(self.angle) * self.speed
         self.y += np.sin(self.angle) * self.speed
         self.hunger += HUNGER_RATE
-        self.hunger += HUNGER_RATE * self.speed * 2# + (self.vision_radius / 50)
+        self.hunger += HUNGER_RATE * self.speed * 2
+        #new_x = self.x + np.cos(self.angle) * self.speed
+        #new_y = self.y + np.sin(self.angle) * self.speed
+        ## Check if the new position is within the window boundaries
+        #if 0 <= new_x <= SCREEN_WIDTH and 0 <= new_y <= SCREEN_HEIGHT:
+        #    self.x = new_x
+        #    self.y = new_y
+        #else:
+        #    # If the new position is outside the boundaries, reflect the angle
+        #    self.angle = np.random.rand() * 2 * np.pi
 
     def draw(self, screen):
         pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), CREATURE_SIZE)#(500-self.hunger)/5)
@@ -157,6 +166,19 @@ while running:
             partner = np.random.choice(creatures)
             if partner is not creature:
                 creatures.append(creature.mate(partner))
+            #partners = [partner for partner in creatures if np.sqrt((creature.x - partner.x) ** 2 + (creature.y - partner.y) ** 2) <=50 and partner != creature]
+            ## Define a custom key function to extract the attractiveness attribute
+            #def get_attractiveness(creature):
+            #    return creature.attractiveness
+#
+            ## Sort the list of creatures based on attractiveness, with the highest first
+            #try:
+            #    partner = sorted(partners, key=get_attractiveness, reverse=True)[0]
+            #    creatures.append(creature.mate(partner))
+            #    #reward += 20  # Arbitrary positive reward for successful reproduction
+            #except:
+            #    None
+            
         if foods:
             nearest_food = min(foods, key=lambda f: np.sqrt((creature.x - f.x) ** 2 + (creature.y - f.y) ** 2))
             for food in foods:
@@ -169,9 +191,17 @@ while running:
         creature.draw(screen)
     for food in foods:
         food.draw(screen)
-    
-    if len(creatures) == 0:
+
+    if len(creatures) == 1:
         creatures = [Creature(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, np.random.uniform(0, 1), np.random.uniform(10, 100), np.random.uniform(1, 10), (255, 255, 255)) for _ in range(NUM_CREATURES)]
+
+    #if len(creatures) == 1:
+    #    creatures[0].hunger = 21
+    #    temp=creatures[0]
+    #    creatures = [creatures[0] for _ in range(NUM_CREATURES-1)]
+    #    for creature in creatures:
+    #        creature.mutate()
+    #    creatures.append(temp)
     # Update display
     pygame.display.flip()
 
