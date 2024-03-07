@@ -55,7 +55,7 @@ class Creature:
         self.hunger += HUNGER_RATE * self.speed * 2# + (self.vision_radius / 50)
 
     def draw(self, screen):
-        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), (500-self.hunger)/5)
+        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), CREATURE_SIZE)#(500-self.hunger)/5)
 
     def mate(self, partner):
         child_speed = self.speed if np.random.rand() < 0.5 else partner.speed
@@ -120,7 +120,7 @@ class Food:
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Evolution Simulation")
-pygame.display.toggle_fullscreen()
+#pygame.display.toggle_fullscreen()
 # Create creatures
 creatures = [Creature(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, np.random.uniform(0, 1), np.random.uniform(10, 100), np.random.uniform(1, 2), (255, 255, 255)) for _ in range(NUM_CREATURES)]
 
