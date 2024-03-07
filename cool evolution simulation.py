@@ -52,6 +52,7 @@ class Creature:
         self.angle += (outputs[0][0] - outputs[0][1]) * np.pi / 8
         self.x += np.cos(self.angle) * self.speed
         self.y += np.sin(self.angle) * self.speed
+        self.hunger += HUNGER_RATE
         self.hunger += HUNGER_RATE * self.speed * 2# + (self.vision_radius / 50)
 
     def draw(self, screen):
